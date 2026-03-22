@@ -19,6 +19,17 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+st.markdown("""
+<style>
+header[data-testid="stHeader"] {display: none !important;}
+#MainMenu {display: none !important;}
+footer {display: none !important;}
+[data-testid="stToolbar"] {display: none !important;}
+[data-testid="stDecoration"] {display: none !important;}
+</style>
+""", unsafe_allow_html=True)
+
 init_db()
 
 # ── Design system ──────────────────────────────────────────────────────────────
