@@ -19,7 +19,7 @@ st.set_page_config(
     page_title="Internship Tracker",
     page_icon="📋",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 init_db()
 
@@ -60,14 +60,33 @@ st.markdown(f"""
   footer{{display:none!important}}
   [data-testid="stToolbar"]{{display:none!important}}
   [data-testid="stDecoration"]{{display:none!important}}
-  .block-container{{padding:1.2rem 1.5rem 2rem;max-width:1280px}}
+  .block-container{{padding:0 1.5rem 2rem;max-width:1280px}}
   body{{background:{BG}}}
   h1{{font-size:20px!important;font-weight:700!important;color:{NAVY}!important;margin:0!important}}
   h2{{font-size:15px!important;font-weight:600!important;color:{NAVY}!important}}
   h3{{font-size:13px!important;font-weight:600!important;color:{NAVY}!important}}
-  [data-testid="stSidebar"]{{background:{NAVY}!important}}
-  [data-testid="stSidebar"] *{{color:#CBD5E0!important}}
-  [data-testid="stSidebar"] .stRadio label{{color:#CBD5E0!important;font-size:14px;padding:8px 0}}
+  [data-testid="stSidebar"]{{display:none!important}}
+  [data-testid="stSidebarCollapsedControl"]{{display:none!important}}
+  .topnav{{background:{NAVY};padding:0 20px;display:flex;align-items:center;
+    justify-content:space-between;position:sticky;top:0;z-index:999;
+    box-shadow:0 2px 8px rgba(0,0,0,.15)}}
+  .topnav-brand{{font-size:15px;font-weight:700;color:#fff;padding:12px 0;white-space:nowrap}}
+  .topnav-brand span{{font-size:11px;color:#8899BB;display:block;font-weight:400}}
+  .topnav-links{{display:flex;gap:4px;align-items:center}}
+  .nav-btn{{background:transparent;border:none;color:#8899BB;font-size:13px;font-weight:500;
+    padding:8px 14px;border-radius:6px;cursor:pointer;white-space:nowrap;transition:all .15s}}
+  .nav-btn:hover{{background:rgba(255,255,255,.1);color:#fff}}
+  .nav-btn.active{{background:rgba(255,255,255,.15);color:#fff}}
+  .nav-alerts{{display:flex;gap:8px;align-items:center}}
+  .nav-dot{{font-size:11px;color:#8899BB;white-space:nowrap}}
+  .nav-dot.red{{color:#FCA5A5}}
+  .nav-dot.amber{{color:#FCD34D}}
+  @media(max-width:768px){{
+    .topnav{{flex-wrap:wrap;padding:0 12px}}
+    .topnav-links{{gap:2px;overflow-x:auto;width:100%;padding:4px 0 8px}}
+    .nav-btn{{padding:6px 10px;font-size:12px}}
+    .nav-alerts{{display:none}}
+  }}
   div[data-testid="metric-container"]{{background:{WHITE};border:1px solid {BORDER};
     border-radius:10px;padding:12px 16px}}
   div[data-testid="metric-container"] label{{font-size:10px!important;font-weight:700!important;
@@ -159,38 +178,64 @@ def rel_color(rel):
        "Client":"#8E44AD","Senior Leader":"#D4800A","External Contact":"#16A085","Other":"#4A5568"}
     return m.get(rel,"#4A5568")
 
-# ── Sidebar ────────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown(f"""
-    <div style="padding:8px 0 14px">
-        <div style="font-size:17px;font-weight:700;color:#fff">📋 Internship</div>
-        <div style="font-size:11px;color:#8899BB;margin-top:2px">{UNAME} · {FIRM}</div>
-    </div>""", unsafe_allow_html=True)
+# ── Top navigation bar ────────────────────────────────────────────────────────
+kpis = get_kpis(UID)
 
-    pages = ["🏠  Dashboard","✅  Tasks","📅  Calendar"]
-    if ROLE == "admin":
-        pages.append("⚙️  Admin")
-    page = st.radio("Navigation", pages, label_visibility="hidden")
+if "page" not in st.session_state:
+    st.session_state["page"] = "Dashboard"
 
-    kpis = get_kpis(UID)
-    st.markdown("---")
-    st.markdown(f"""
-    <div style="font-size:11px;color:#8899BB;line-height:2.2">
-        {"🔴" if kpis['overdue']>0 else "✅"} {kpis['overdue']} overdue<br>
-        {"🟡" if kpis['pending_questions']>0 else "✅"} {kpis['pending_questions']} pending questions<br>
-        {"🟣" if kpis['pending_followups']>0 else "✅"} {kpis['pending_followups']} follow-ups due<br>
-        {"🔵" if kpis['today_events']>0 else "  "} {kpis['today_events']} events today
-    </div>""", unsafe_allow_html=True)
-    st.markdown(f"<div style='font-size:11px;color:#8899BB;margin-top:10px'>{date.today().strftime('%a, %d %b %Y')}</div>",
-                unsafe_allow_html=True)
-    st.markdown("---")
+def set_page(p):
+    st.session_state["page"] = p
+
+# Build alert dots for nav
+alert_html = ""
+if kpis["overdue"] > 0:
+    alert_html += f'<span class="nav-dot red">⚠ {kpis["overdue"]} overdue</span>'
+if kpis["pending_questions"] > 0:
+    alert_html += f'<span class="nav-dot amber">❓ {kpis["pending_questions"]} questions</span>'
+if kpis["today_events"] > 0:
+    alert_html += f'<span class="nav-dot">🔵 {kpis["today_events"]} events today</span>'
+
+nav_pages = ["Dashboard","Tasks","Calendar"]
+if ROLE == "admin":
+    nav_pages.append("Admin")
+
+nav_links = ""
+for p in nav_pages:
+    icons = {"Dashboard":"🏠","Tasks":"✅","Calendar":"📅","Admin":"⚙️"}
+    active = "active" if st.session_state["page"] == p else ""
+    nav_links += f'<button class="nav-btn {active}" onclick="void(0)">{icons.get(p,"")} {p}</button>'
+
+st.markdown(f"""
+<div class="topnav">
+    <div class="topnav-brand">📋 Internship Tracker
+        <span>{UNAME} · {FIRM} · {date.today().strftime("%d %b %Y")}</span>
+    </div>
+    <div class="nav-alerts">{alert_html}</div>
+</div>
+""", unsafe_allow_html=True)
+
+# Actual navigation — using columns as buttons
+nav_col_count = len(nav_pages) + 1
+nav_cols = st.columns(nav_col_count)
+for i, p in enumerate(nav_pages):
+    icons = {"Dashboard":"🏠 ","Tasks":"✅ ","Calendar":"📅 ","Admin":"⚙️ "}
+    with nav_cols[i]:
+        btn_type = "primary" if st.session_state["page"] == p else "secondary"
+        if st.button(f"{icons.get(p,'')}{p}", use_container_width=True, key=f"nav_{p}"):
+            set_page(p)
+            st.rerun()
+with nav_cols[-1]:
     if st.button("Sign Out", use_container_width=True):
         logout()
+
+st.markdown("---")
+page = st.session_state["page"]
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  DASHBOARD
 # ══════════════════════════════════════════════════════════════════════════════
-if page == "🏠  Dashboard":
+if page == "Dashboard":
     hc1, hc2 = st.columns([4,1])
     with hc1:
         st.markdown(f"""
@@ -340,7 +385,7 @@ if page == "🏠  Dashboard":
 # ══════════════════════════════════════════════════════════════════════════════
 #  TASKS
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "✅  Tasks":
+elif page == "Tasks":
     tasks_df = get_all_tasks(UID)
     sub = st.radio("Section", ["📋 All Tasks","👥 Contacts & Networking"],
                    horizontal=True, label_visibility="hidden")
@@ -360,27 +405,29 @@ elif page == "✅  Tasks":
 
         if st.session_state.get("add_task"):
             with st.form("new_task_form", clear_on_submit=True):
-                st.markdown("#### New Task")
-                nc1,nc2 = st.columns(2)
-                with nc1:
-                    tn  = st.text_input("Task name *")
-                    prj = st.text_input("Project / Workstream")
-                    asb = st.text_input("Assigned by")
-                with nc2:
-                    ddl = st.number_input("Deadline — days from today", 1, 365, 14)
-                    pri = st.selectbox("Priority", PRIORITY_OPTS)
+                st.markdown("#### ➕ New Task")
+                tn  = st.text_input("Task name *", placeholder="e.g. NPA Trend Analysis – Retail Banking")
+                c1,c2,c3 = st.columns(3)
+                with c1:
+                    prj = st.text_input("Project", placeholder="e.g. Credit Risk")
+                    asb = st.text_input("Assigned by", placeholder="Manager name")
+                with c2:
+                    ddl = st.number_input("Deadline (days from today)", 1, 365, 14)
+                    pri = st.select_slider("Priority", ["Low","Medium","High"], value="Medium")
+                with c3:
                     nts = st.text_input("Notes (optional)")
+                    st.markdown("<br>", unsafe_allow_html=True)
                 b1,b2 = st.columns(2)
                 with b1:
-                    sub_btn = st.form_submit_button("Create Task", use_container_width=True)
+                    sub_btn = st.form_submit_button("✅ Create Task", use_container_width=True)
                 with b2:
                     can_btn = st.form_submit_button("Cancel", use_container_width=True)
                 if sub_btn:
                     if not tn:
-                        st.error("Task name required.")
+                        st.error("Task name is required.")
                     else:
                         tid = add_task(UID, tn, prj, asb, ddl, pri, nts)
-                        st.success(f"✅ Task {tid} created.")
+                        st.success(f"Task {tid} created.")
                         st.session_state["add_task"] = False
                         st.rerun()
                 if can_btn:
@@ -421,29 +468,31 @@ elif page == "✅  Tasks":
                 with t1:
                     with st.form(f"lw_{r['task_id']}", clear_on_submit=True):
                         work = st.text_area("What did you work on? *",
-                            placeholder="Verb-first: 'Built segment pivot for NPA analysis'",height=80)
-                        lc1,lc2,lc3 = st.columns(3)
-                        with lc1: hrs = st.number_input("Hours", 0.0, 24.0, 1.0, 0.5)
-                        with lc2: new_st = st.selectbox("Update status", ["No change"]+STATUS_OPTS)
-                        with lc3: ext_ddl = st.checkbox("Extend deadline?")
+                            placeholder="e.g. Built NPA pivot table, drafted slide 3",height=80)
+                        c1,c2 = st.columns(2)
+                        with c1:
+                            hrs    = st.number_input("Hours spent", 0.0, 24.0, 1.0, 0.5)
+                            new_st = st.selectbox("Update status", ["No change"]+STATUS_OPTS)
+                        with c2:
+                            ns = st.text_input("Next step *",
+                                placeholder="What happens next — shows on Dashboard")
+                            blk = st.text_input("Any blockers?", placeholder="Optional")
+                        ext_ddl = st.checkbox("Need to extend deadline?")
                         if ext_ddl:
                             new_ddl_days = st.number_input("New deadline — days from today", 1, 365, 7)
                             new_ddl_val  = date.today() + timedelta(days=int(new_ddl_days))
                             st.caption(f"New deadline: **{new_ddl_val}**")
                         else:
                             new_ddl_val = None
-                        ns  = st.text_input("Next step *",
-                            placeholder="Most important next action — shows on Dashboard")
-                        blk = st.text_input("Blockers (optional)")
-                        if st.form_submit_button("💾 Save Work Log", use_container_width=True):
+                        if st.form_submit_button("💾 Save", use_container_width=True):
                             if not work or not ns:
-                                st.error("Work done and Next step required.")
+                                st.error("Work done and Next step are required.")
                             else:
                                 add_log(UID, r['task_id'], "work", work_done=work,
                                         time_spent=hrs, blockers=blk, next_step=ns,
                                         status_update="" if new_st=="No change" else new_st,
                                         deadline_update=new_ddl_val)
-                                st.success("Logged! Dashboard updated.")
+                                st.success("✅ Logged!")
                                 st.rerun()
 
                 with t2:
@@ -451,34 +500,33 @@ elif page == "✅  Tasks":
                                     horizontal=True, key=f"cmode_{r['task_id']}")
                     if mode == "Log past communication":
                         with st.form(f"comm_{r['task_id']}", clear_on_submit=True):
-                            cc1,cc2 = st.columns(2)
-                            with cc1:
-                                stk = st.text_input("Person *")
-                                med = st.selectbox("Medium", MEDIUM_OPTS)
-                            with cc2:
-                                disc = st.text_area("What was discussed? *", height=80)
-                                act  = st.text_input("Action item")
-                            if st.form_submit_button("💾 Log Communication", use_container_width=True):
+                            stk  = st.text_input("Who did you speak with? *", placeholder="Name")
+                            med  = st.selectbox("How?", MEDIUM_OPTS)
+                            disc = st.text_area("Key points discussed *",
+                                placeholder="What was said, decided, or shared", height=70)
+                            act  = st.text_input("Action item (optional)")
+                            if st.form_submit_button("💾 Save", use_container_width=True):
                                 if not stk or not disc:
-                                    st.error("Person and discussion required.")
+                                    st.error("Person and discussion are required.")
                                 else:
                                     add_log(UID, r['task_id'], "communication",
                                             stakeholder=stk, medium=med,
                                             discussion=disc, action_item=act)
-                                    st.success("Logged.")
+                                    st.success("✅ Logged.")
                                     st.rerun()
                     else:
                         with st.form(f"sched_{r['task_id']}", clear_on_submit=True):
-                            sc1,sc2 = st.columns(2)
-                            with sc1:
-                                ev_title = st.text_input("Meeting title *")
-                                ev_type  = st.selectbox("Type", EVENT_TYPES)
-                                ev_with  = st.text_input("With whom *")
-                            with sc2:
-                                ev_date  = st.date_input("Date *", value=date.today()+timedelta(1))
-                                ev_time  = st.time_input("Time *")
-                                ev_dur   = st.number_input("Duration (mins)", 15, 180, 30, 15)
-                            ev_agenda = st.text_area("Agenda", height=60)
+                            ev_title = st.text_input("Meeting title *", placeholder="e.g. Weekly sync with Rahul")
+                            ec1,ec2,ec3 = st.columns(3)
+                            with ec1:
+                                ev_type = st.selectbox("Type", EVENT_TYPES)
+                                ev_with = st.text_input("With whom *")
+                            with ec2:
+                                ev_date = st.date_input("Date", value=date.today()+timedelta(1))
+                                ev_time = st.time_input("Time")
+                            with ec3:
+                                ev_dur  = st.number_input("Duration (mins)", 15, 180, 30, 15)
+                            ev_agenda = st.text_input("Agenda (optional)", placeholder="Topics to cover")
                             if st.form_submit_button("📅 Schedule", use_container_width=True):
                                 if not ev_title or not ev_with:
                                     st.error("Title and person required.")
@@ -486,7 +534,7 @@ elif page == "✅  Tasks":
                                     add_event(UID, r['task_id'], ev_date,
                                               ev_time.strftime("%H:%M"), ev_dur,
                                               ev_type, ev_title, ev_agenda, ev_with)
-                                    st.success("Scheduled!")
+                                    st.success("✅ Scheduled!")
                                     st.rerun()
 
                 with t3:
@@ -514,14 +562,16 @@ elif page == "✅  Tasks":
 
                 with t4:
                     with st.form(f"mq_{r['task_id']}", clear_on_submit=True):
-                        q_text = st.text_area("Question to raise with manager *", height=70)
-                        q_pri  = st.selectbox("Priority", PRIORITY_OPTS, key=f"qp_{r['task_id']}")
-                        if st.form_submit_button("➕ Add to Manager Queue", use_container_width=True):
+                        q_text = st.text_input("What do you need to ask your manager? *",
+                            placeholder="e.g. Should I use CET1 or Total Tier-1 for this analysis?")
+                        q_pri  = st.select_slider("Priority", ["Low","Medium","High"], value="Medium",
+                            key=f"qp_{r['task_id']}")
+                        if st.form_submit_button("➕ Add to Queue", use_container_width=True):
                             if not q_text:
                                 st.error("Question required.")
                             else:
                                 add_manager_item(UID, r['task_id'], q_text, q_pri)
-                                st.success("Added — visible on Dashboard.")
+                                st.success("✅ Added — shows on Dashboard before your next call.")
                                 st.rerun()
                     tmq = get_manager_queue(UID, status="pending")
                     if not tmq.empty:
@@ -708,7 +758,7 @@ elif page == "✅  Tasks":
 # ══════════════════════════════════════════════════════════════════════════════
 #  CALENDAR — redesigned
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "📅  Calendar":
+elif page == "Calendar":
     today = date.today()
     if "cal_month" not in st.session_state:
         st.session_state["cal_month"] = today.month
@@ -965,7 +1015,7 @@ elif page == "📅  Calendar":
 # ══════════════════════════════════════════════════════════════════════════════
 #  ADMIN
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "⚙️  Admin":
+elif page == "Admin":
     if ROLE != "admin":
         st.error("Access denied.")
         st.stop()
