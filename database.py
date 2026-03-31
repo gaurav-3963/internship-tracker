@@ -1,5 +1,6 @@
 import psycopg2
 import psycopg2.extras
+import streamlit as st
 import pandas as pd
 from datetime import date, timedelta
 import os
@@ -233,6 +234,7 @@ def complete_profile(user_id, name, firm, phone, internship_start, internship_en
     conn.commit()
     c.close(); conn.close()
 
+@st.cache_data(ttl=60)
 def get_all_users():
     return read_sql("""SELECT user_id,name,email,firm,phone,role,
         is_active,profile_complete,created_at,last_login
@@ -275,11 +277,14 @@ def add_task(uid, task_name, project, assigned_by, deadline_days, priority, note
         (tid,uid,task_name,project,assigned_by,today,deadline,priority,today,notes))
     conn.commit()
     c.close(); conn.close()
+    st.cache_data.clear()
     return tid
 
+@st.cache_data(ttl=60)
 def get_all_tasks(uid):
     return read_sql("SELECT * FROM tasks WHERE user_id=%s ORDER BY deadline ASC", params=(uid,))
 
+@st.cache_data(ttl=60)
 def get_task(uid, task_id):
     df = read_sql("SELECT * FROM tasks WHERE user_id=%s AND task_id=%s", params=(uid, task_id))
     return df.iloc[0] if not df.empty else None
@@ -302,6 +307,7 @@ def delete_task(uid, task_id):
     c.execute("DELETE FROM tasks WHERE user_id=%s AND task_id=%s", (uid, task_id))
     conn.commit()
     c.close(); conn.close()
+    st.cache_data.clear()
 
 # ── Activity Log ───────────────────────────────────────────────────────────────
 def add_log(uid, task_id, log_type, work_done="", time_spent=0, blockers="",
@@ -337,10 +343,12 @@ def add_log(uid, task_id, log_type, work_done="", time_spent=0, blockers="",
     conn.commit()
     c.close(); conn.close()
 
+@st.cache_data(ttl=60)
 def get_logs_for_task(uid, task_id):
     return read_sql("""SELECT * FROM activity_log WHERE user_id=%s AND task_id=%s
                        ORDER BY date DESC, log_id DESC""", params=(uid, task_id))
 
+@st.cache_data(ttl=60)
 def get_recent_activity(uid, limit=6):
     return read_sql("""SELECT * FROM activity_log WHERE user_id=%s
                        ORDER BY date DESC, log_id DESC LIMIT %s""", params=(uid, limit))
@@ -356,6 +364,7 @@ def add_event(uid, task_id, event_date, event_time, duration, event_type, title,
     conn.commit()
     c.close(); conn.close()
 
+@st.cache_data(ttl=60)
 def get_events(uid, status=None, event_date=None):
     q = "SELECT * FROM scheduled_events WHERE user_id=%s"
     p = [uid]
@@ -364,6 +373,7 @@ def get_events(uid, status=None, event_date=None):
     q += " ORDER BY date ASC, time ASC"
     return read_sql(q, params=tuple(p))
 
+@st.cache_data(ttl=60)
 def get_events_for_month(uid, year, month):
     return read_sql("""SELECT * FROM scheduled_events WHERE user_id=%s
         AND EXTRACT(YEAR FROM date)=%s AND EXTRACT(MONTH FROM date)=%s""",
@@ -387,6 +397,7 @@ def add_manager_item(uid, task_id, question, priority):
     conn.commit()
     c.close(); conn.close()
 
+@st.cache_data(ttl=60)
 def get_manager_queue(uid, status=None):
     q = """SELECT m.*,t.task_name FROM manager_queue m
            LEFT JOIN tasks t ON m.task_id=t.task_id AND t.user_id=m.user_id
@@ -404,6 +415,7 @@ def resolve_manager_item(uid, item_id, answer):
               (answer, date.today(), item_id, uid))
     conn.commit()
     c.close(); conn.close()
+    st.cache_data.clear()
 
 # ── Contacts ───────────────────────────────────────────────────────────────────
 def add_contact(uid, name, role, relationship, company, email, phone, linkedin, notes):
@@ -416,6 +428,7 @@ def add_contact(uid, name, role, relationship, company, email, phone, linkedin, 
     conn.commit()
     c.close(); conn.close()
 
+@st.cache_data(ttl=60)
 def get_all_contacts(uid):
     return read_sql("SELECT * FROM contacts WHERE user_id=%s ORDER BY relationship,name", params=(uid,))
 
@@ -445,9 +458,11 @@ def add_networking_log(uid, contact_id, contact_name, interaction_type,
     conn.commit()
     c.close(); conn.close()
 
+@st.cache_data(ttl=60)
 def get_all_networking(uid):
     return read_sql("SELECT * FROM networking_log WHERE user_id=%s ORDER BY date DESC", params=(uid,))
 
+@st.cache_data(ttl=60)
 def get_pending_followups(uid):
     return read_sql("""SELECT * FROM networking_log WHERE user_id=%s
         AND follow_up_needed=TRUE AND follow_up_done=FALSE
@@ -460,8 +475,10 @@ def mark_followup_done(uid, net_id):
               (net_id, uid))
     conn.commit()
     c.close(); conn.close()
+    st.cache_data.clear()
 
 # ── KPIs — single query ────────────────────────────────────────────────────────
+@st.cache_data(ttl=60)
 def get_kpis(uid):
     conn = get_conn()
     c = conn.cursor()
@@ -493,6 +510,7 @@ def get_kpis(uid):
                 today_events=today_ev,pending_followups=followups)
 
 # ── Calendar ───────────────────────────────────────────────────────────────────
+@st.cache_data(ttl=60)
 def get_calendar_data(uid, year, month):
     tasks_df  = read_sql("""SELECT task_id,task_name,deadline,status,priority FROM tasks
         WHERE user_id=%s AND EXTRACT(YEAR FROM deadline)=%s AND EXTRACT(MONTH FROM deadline)=%s""",
